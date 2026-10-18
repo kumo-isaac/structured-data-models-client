@@ -31,6 +31,7 @@ import contextlib
 import datetime
 import string
 import warnings
+from collections.abc import Callable, Mapping
 from typing import Any, NoReturn
 
 from sdm_client._rust import codec
@@ -741,11 +742,15 @@ def warn_from_core(
     quiet: frozenset[str] = frozenset(),
     given: set[str] | None = None,
     held: list[dict[str, Any]] | None = None,
+    words: Mapping[str, Callable[[dict[str, Any]], str]] | None = None,
 ) -> None:
     r"""Shows each warning of a ``warnings`` control message, in order, but
     those whose code ``quiet`` names: one the caller has shown already, or
     may show itself, kept in ``held`` when it is given (:func:`warn_held`).
-    Each code given is added to ``given``, shown or not."""
+    Each code given is added to ``given``, shown or not. A warning of a code
+    ``words`` names is said by its function, from its decoded fields, in
+    place of :data:`SAID`'s template (none of them a code :data:`GROUPED`
+    holds)."""
     message = codec.read(control, attachments)
     # Warnings of a code GROUPED holds, one after another with the same
     # values of its fields, are shown as one.
@@ -779,6 +784,14 @@ def warn_from_core(
                 _Words().format(opening, **first)
                 + between.join(said(warning) for warning in together)
                 + closing
+            )
+        elif words is not None and code in words:
+            [warning] = together
+            text = words[code](
+                {
+                    name: _detail(value)
+                    for name, value in warning.get('fields', {}).items()
+                }
             )
         else:
             [warning] = together

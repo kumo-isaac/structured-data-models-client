@@ -79,6 +79,7 @@ TAKEN = frozenset(
         'random_seed',
         'prediction_statistic',
         'inference_config',
+        'top_k',
     }
 )
 
@@ -91,6 +92,7 @@ VALUED = frozenset(
         'num_neighbors',
         'prediction_statistic',
         'inference_config',
+        'top_k',
     }
 )
 
@@ -202,6 +204,84 @@ def _indices(indices: Sequence[Any]) -> Any:
     return pa.table({'indices': column})
 
 
+def _candidates(candidates: Sequence[Any]) -> list[dict[str, Any]]:
+    r"""A ranking's candidates as the contract's scalars, each of its own
+    type, as the reference's ``_as_literal`` reads a candidate (T2.8): a
+    NumPy value as the Python value it holds (``.item()``); a missing one
+    (``None``, a NaN, ``pd.NA``, ``pd.NaT``) null; a boolean; a finite
+    decimal as one of its digits and scale; an integer as the narrowest of
+    ``i64``, ``u64`` and a decimal of scale 0 that holds it; a float as the
+    double it is; and any other value, an infinite decimal among them, as
+    its text (``str``), as the reference writes one. What each means as a
+    candidate is the core's.
+
+    Raises:
+        StructuredDataError: A candidate Python cannot hash, which names
+            no row, ``INVALID_REQUEST`` (register P2D-1), where the
+            reference's ``dict.fromkeys`` raises ``TypeError``.
+    """
+    import contextlib
+    from decimal import Decimal
+
+    from sdm_client.wire.dtypes import _is_missing
+
+    written = []
+    for value in candidates:
+        try:
+            hash(value)
+        except TypeError:
+            raise StructuredDataError(
+                f'a candidate names a row by its key, and a '
+                f'{type(value).__name__} is not one: a key is looked up by '
+                f'value, so it has to be hashable',
+                code='INVALID_REQUEST',
+                details={'field': 'candidates'},
+            ) from None
+        if hasattr(value, 'item'):
+            with contextlib.suppress(AttributeError, ValueError):
+                value = value.item()
+        if _is_missing(value):
+            written.append({'t': 'null'})
+        elif isinstance(value, bool):
+            written.append({'t': 'bool', 'v': value})
+        elif isinstance(value, Decimal) and value.is_finite():
+            sign, digits, exponent = value.as_tuple()
+            assert isinstance(exponent, int)
+            unscaled = int(''.join(map(str, digits)) or '0') * 10 ** max(
+                exponent, 0
+            )
+            scale = max(-exponent, 0)
+            written.append(_decimal(-unscaled if sign else unscaled, scale))
+        elif isinstance(value, int):
+            if -(2**63) <= value < 2**63:
+                written.append(codec.integer('i64', value))
+            elif 0 <= value < 2**64:
+                written.append(codec.integer('u64', value))
+            else:
+                written.append(_decimal(value, 0))
+        elif isinstance(value, float):
+            written.append({'t': 'f64', 'v': repr(value)})
+        else:
+            written.append({'t': 'utf8', 'v': str(value)})
+    return written
+
+
+def _decimal(unscaled: int, scale: int) -> dict[str, Any]:
+    r"""A decimal scalar of ``unscaled`` at ``scale``: ``d128`` up to 38
+    digits, ``d256`` up to 76, and past that its digits as text, which no
+    scalar holds."""
+    precision = max(len(str(abs(unscaled))), scale, 1)
+    if precision <= 38:
+        tag = 'd128'
+    elif precision <= 76:
+        tag = 'd256'
+    else:
+        from decimal import Decimal
+
+        return {'t': 'utf8', 'v': format(Decimal(unscaled).scaleb(-scale), 'f')}
+    return {'t': tag, 'v': str(unscaled), 'p': precision, 's': scale}
+
+
 def _text(value: Any) -> str:
     r"""A value as its text, a boolean as Arrow writes one and a float as
     the core writes a float entity (``sdm_engine::keys``'s ``float_text``,
@@ -241,9 +321,15 @@ def gather(
     indices: Sequence[Any],
     num_context_samples: int | None,
     options: dict[str, Any],
+    candidates: Sequence[Any] | None = None,
 ) -> tuple[tuple[dict[str, Any], ...], dict[str, Any]]:
     r"""The payloads of the request, gathered on the core, and the request
     state's version, which the request keeps for predict on the core.
+
+    ``candidates``, a ranking's, are handed over as the caller named them,
+    each as the contract's scalar of its own type (:func:`_candidates`,
+    T2.8): the core asks one question per distinct candidate and refuses
+    them on any other question.
 
     Raises:
         StructuredDataError: The core's refusal, as :mod:`.errors` maps it,
@@ -251,6 +337,8 @@ def gather(
             materialize yet; and the client's own checks of the call's
             types.
     """
+    from sdm_client import decompose
+
     schema = materializer.schema
     anchor = options.get('anchor_time')
     described, held = description(schema)
@@ -272,6 +360,10 @@ def gather(
         # call, never the default; the core says whether it takes it.
         'values': 5,
         'options': sorted(set(options) - TAKEN),
+        # How many parts the caller lets a question be asked as, which the
+        # core holds a forecast's steps and a ranking's candidates to
+        # (T1.36 fix 21, T2.8); only the core knows which a query is.
+        'most_parts': max(0, min(int(decompose.MOST_PARTS), 2**32 - 1)),
     }
     attachments = {
         1: codec.attachment(described),
@@ -290,18 +382,9 @@ def gather(
             }
         ),
     }
-    if isinstance(query, Unresolved) or str(
-        getattr(query, 'problem_type', '')
-    ).endswith('FORECAST'):
-        # How many steps the caller lets a forecast be asked as, which the
-        # core holds it to (T1.36 fix 21); for a query only the core
-        # resolves, whose kind only the core knows, always, as the core
-        # reads it of a forecast alone (T2.18).
-        from sdm_client import decompose
-
-        operation['most_parts'] = max(
-            0, min(int(decompose.MOST_PARTS), 2**32 - 1)
-        )
+    if candidates is not None:
+        operation['candidates'] = 6
+        attachments[6] = codec.attachment(_candidates(candidates))
     # The sampler state the core's last run on this materializer left,
     # handed back, so a run skips what the reference's sampler reads once
     # (decision E52); the run leaves its own in its place, done or failed.
@@ -320,6 +403,26 @@ def gather(
         'version': state['version'],
         'facts': finished.result.get('query'),
     }
+    if state.get('ranking') is not None:
+        # A ranking, which the core asked as one binary question per
+        # candidate (T2.8): the first candidate's query and name (the JSON
+        # text of its value, as the result names it), each later one's
+        # position among the candidates given, name, payload and query, and
+        # how many candidates a row keeps.
+        kept['query'] = query
+        kept['ranking'] = {
+            'top_k': state['ranking'].get('top_k'),
+            'value': state['ranking']['value'],
+            'parts': [
+                (
+                    part['candidate'],
+                    part['value'],
+                    json.loads(finished.take(part['payload'])),
+                    json.loads(finished.take(part['query'])),
+                )
+                for part in state['ranking']['parts']
+            ],
+        }
     if state.get('forecast') is not None:
         # A forecast, which the core asked as one regression per step (T1.36
         # fix 21): step 1's query, and each later step's number, payload
@@ -341,9 +444,9 @@ class Unresolved:
     a dot, a backtick or a line break, which the old validator refuses and
     the core holds apart from its table (KO2-36, T2.18). It is gathered as
     the caller wrote it, and the core answers what it resolved of it
-    (``Materialized.query``, contract v26). ``refusal`` is the old
-    validator's, for a call the core does not answer (a ranking over
-    candidates, which this client asks one part per candidate)."""
+    (``Materialized.query``, contract v26), a ranking's questions and a
+    forecast's steps among it (T2.8). ``refusal`` is the old validator's,
+    said of a query the core does not resolve either."""
 
     def __init__(self, text: str, refusal: StructuredDataError) -> None:
         self.text = text

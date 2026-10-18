@@ -53,6 +53,7 @@ fn shop() -> Sampled {
         run_mode: RunMode::Fast,
         options: Options::default(),
         statistic: Some("mean".into()),
+        top_k: None,
         float_text: |x| format!("{x:?}"),
         tables: vec![
             SampledTable {
@@ -132,6 +133,7 @@ fn family() -> Sampled {
         run_mode: RunMode::Best,
         options: Options::default(),
         statistic: None,
+        top_k: None,
         float_text: |x| format!("{x:?}"),
         tables: vec![
             SampledTable {
@@ -180,6 +182,7 @@ fn classified(kind: Kind, labels: Labels) -> Sampled {
         labels,
         windowed: false,
         statistic: None,
+        top_k: None,
         ..shop()
     }
 }

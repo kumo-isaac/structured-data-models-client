@@ -3,7 +3,7 @@
   "about": "Each change to frozen bridge code against the merge base, with one reason: moved (a rule moved into Rust, naming its task), refactor (behaviour kept), gone (an entry that left the freeze) or main (a change main made, merged by this change: the full SHA of the main commit, then its title). Entries the merge base already holds are spent and may be pruned.",
   "changes": {
     "packages/structured-data-models-client/src/sdm_client/_rust/materialize.py::<module>": {
-      "moved": "T2.18: the module gains Unresolved, a query only the core resolves, and asked, the host's reading of what the core resolved of a query (Materialized.query, contract v26)"
+      "moved": "T2.8: the module gains _candidates and _decimal, the host's encoding of a ranking's candidates as the contract's scalars, each of its own type (Materialize.candidates), the ranking's decomposition and its refusals being the core's (sdm-request's ranking, sdm-core's ranking)"
     },
     "packages/structured-data-models-client/src/sdm_client/_rust/materialize.py::_indices": {
       "moved": "T1.32a: the cast to the key's type with pandas (pd.Series(indices, dtype=...)) and its INVALID_REQUEST and INTERNAL_ERROR split are the core's rule table; the bridge hands over the values as pyarrow infers them, or as their text where it infers no one type"
@@ -15,7 +15,7 @@
       "moved": "T1.32a: the bridge's key_type refusal, for a key type it had no cast for, is the core's (sdm_engine::keys::cast refuses a key type no rule casts to)"
     },
     "packages/structured-data-models-client/src/sdm_client/_rust/materialize.py::gather": {
-      "moved": "T2.18: the run's answer of what the core resolved of the query (Materialized.query) is kept beside the state's version for asked; the caller's forecast step limit (decompose.MOST_PARTS) is sent for a query only the core resolves, whose kind only the core knows, as for a forecast; no rule added"
+      "moved": "T2.8: a ranking's candidates sent as Materialize.candidates and top_k among the call's values (TAKEN, VALUED), the caller's part limit (decompose.MOST_PARTS) sent on every call, the core holding a forecast's steps and a ranking's candidates to it, and a ranking's state kept (each later question's candidate, its name, payload and query, and top_k); the decomposition, its refusals and the forecast's top_k and MOST_PARTS refusals are the core's"
     },
     "packages/structured-data-models-client/src/sdm_client/_rust/materialize.py::_text": {
       "moved": "T1.36 fix 4 (the final review's P2-2): the host's half of the moved cast: a float in a mix written as the core now writes a float entity (sdm_engine::keys's float_text), the reference's text of it, pyarrow's cast of the float to text at its own width (1e16 is 1e+16), so the core reads back the number the host was given; a boolean as before"
@@ -24,40 +24,40 @@
       "refactor": "T2.1b: each table named is sent as contract v26 writes a source, a relation of one part (codec.relation), never split on a dot; T2.2: the provider choice and provider are the source's backend's (_provider), SQLite's beside DuckDB's; no rule added"
     },
     "packages/structured-data-models-client/src/sdm_client/_rust/predict.py::<module>": {
-      "moved": "T1.36 fix 8: the module gains _id, the host's half of the entity reading moved into the core (sdm-request's predict::layout and entity, as the reference's _named_entities and as_declared): the bridge reads the id the core gives, as the JSON text of the reference's item value where the core's column cannot hold it"
+      "moved": "T2.8: the module gains _ranked, the host's presentation of the core's ranking (each named candidate given back as the caller gave it), and _unscored, the words of the core's CANDIDATES_UNSCORED notice naming the candidates as given; the ranking's checks, its questions, PD-1's order and the reassembly are the core's"
     },
     "packages/structured-data-models-client/src/sdm_client/_rust/predict.py::_id": {
       "moved": "T1.36 fix 8: the host's half of the moved entity reading: a row's id as the core's id_as_written column gives it (the JSON text of the reference's item value, read as the transport reads JSON), else the id column's value, a missing one None; no rule of its own, as _as_answered for a prediction"
     },
     "packages/structured-data-models-client/src/sdm_client/_rust/predict.py::predict": {
-      "moved": "T1.36 fix 21: a forecast's steps predicted and merged by the core in one run: each step's payload and query passed as RequestState.forecast, the endpoint's refusal noted with the call (the step) it answered, and the answer marked as naming its step; fix 24: each later step's call given its own request id, drawn with _request_id as the adapter draws one per call"
+      "moved": "T2.8: a ranking's questions passed as RequestState.ranking with an id drawn for each, the core's notice of the candidates left out worded by the host, an endpoint refusal said of the candidate whose question it answered, and the result laid out by _ranked; T2.8b's response_field: an item's scores and rankings given back as the core lays them out"
     },
     "packages/structured-data-models-client/src/sdm_client/client.py::SDMClient._answer_in_parts": {
-      "main": "1fc5a68632c760568416ac64a7f499d235b620b8 Gather more entities than one call scores as several calls (#36)"
+      "moved": "T2.8: a ranking the core gathered is predicted by the core, as a forecast is (T1.36 fix 21): its outputs' check, the check of every question before any is sent, the candidates left out, each question's call and the reassembly are the core's; the old route's are unchanged"
     },
     "packages/structured-data-models-client/src/sdm_client/query.py::<module>": {
-      "refactor": "T2.18: _alone, whether a resolved query is the core's alone, importing the bridge on the core route only; _refuse_the_task, the task= refusal both paths raise; the forecast's steps kept together by _kept_as_steps and a query only the core resolves gathered by _on_the_core_alone; a type-checking import; no rule added"
+      "moved": "T2.8: _in_steps_on_the_core and _on_the_core_alone become _on_the_core, every query on the core route gathered whole by the core (a forecast's steps, a ranking's candidates, a query only the core resolves), its refusals said by decompose.said_as_parts_are; _kept_as_parts keeps a ranking's questions as _kept_as_steps keeps a forecast's steps"
     },
     "packages/structured-data-models-client/src/sdm_client/query.py::PredictiveQuery.materialize": {
-      "moved": "T2.18: a query only the core resolves (KO2-36) is held to task= as any relational query, then gathered as itself (_on_the_core_alone): a forecast kept in the steps the core asked, the core's forecast top_k and too-many-steps refusals said in this client's words, a query the core does not resolve refused with the old validator's diagnostics, a ranking over candidates refused by name"
+      "moved": "T2.8: on the core route the question goes to the core whole: the ranking's decomposition and refusals, and the forecast's top_k and MOST_PARTS refusals, are the core's (parts_of is not run there), task= refused first as for any relational query"
     },
     "packages/structured-data-models-client/src/sdm_client/decompose.py::<module>": {
-      "main": "1fc5a68632c760568416ac64a7f499d235b620b8 Gather more entities than one call scores as several calls (#36)"
+      "moved": "T2.8: the module gains said_as_parts_are, _reworded, _too_many and _RULES, the words of the core's refusals of a question it asks in parts, as parts_of and _as_literal say them; no rule of their own"
     },
     "packages/structured-data-models-client/src/sdm_client/decompose.py::parts_of": {
-      "moved": "T1.36 fix 21: on the core route a forecast is not split here, the core splitting it; the refusals before anything is gathered (top_k, more steps than MOST_PARTS) stay the client's, worded as before"
+      "moved": "T2.8: the forecast's top_k and MOST_PARTS refusals on the core route are the core's (the on_the_core branch gone); parts_of is the old route's alone, as the reference's"
     },
     "packages/structured-data-models-client/src/sdm_client/base.py::check_request_against_model": {
       "main": "1fc5a68632c760568416ac64a7f499d235b620b8 Gather more entities than one call scores as several calls (#36)"
     },
     "packages/structured-data-models-client/src/sdm_client/client.py::<module>": {
-      "main": "1fc5a68632c760568416ac64a7f499d235b620b8 Gather more entities than one call scores as several calls (#36)"
+      "moved": "T2.8: the module gains _said_of_the_part and _ranking_said, the words of the core's refusals of a ranking at predict (the part it names, its candidates as given), as _answer_in_parts said them; no rule of their own"
     },
     "packages/structured-data-models-client/src/sdm_client/client.py::SDMClient.predict": {
       "main": "1fc5a68632c760568416ac64a7f499d235b620b8 Gather more entities than one call scores as several calls (#36)"
     },
     "packages/structured-data-models-client/src/sdm_client/materializers/relational.py::<module>": {
-      "main": "1fc5a68632c760568416ac64a7f499d235b620b8 Gather more entities than one call scores as several calls (#36)"
+      "refactor": "T2.8: RelationalMaterializer.materialize takes a ranking's candidates, which it passes to the core on the core route; no rule added"
     },
     "packages/structured-data-models-client/src/sdm_client/materializers/relational.py::RelationalMaterializer._check_entity_count": {
       "main": "1fc5a68632c760568416ac64a7f499d235b620b8 Gather more entities than one call scores as several calls (#36)"
@@ -69,7 +69,7 @@
       "main": "1fc5a68632c760568416ac64a7f499d235b620b8 Gather more entities than one call scores as several calls (#36)"
     },
     "packages/structured-data-models-client/src/sdm_client/materializers/relational.py::RelationalMaterializer.materialize": {
-      "moved": "T2.18: on the core route the target's window and the entity table are read through _rust.materialize.asked, what the core resolved for a query only it resolves (KO2-36); the old route reads them as before"
+      "moved": "T2.8: a ranking's candidates passed to the core's gather on the core route, the core asking the ranking's questions; the old route unchanged"
     },
     "packages/structured-data-models-client/src/sdm_client/query.py::PredictiveQuery._in_parts": {
       "main": "1fc5a68632c760568416ac64a7f499d235b620b8 Gather more entities than one call scores as several calls (#36)"
@@ -109,6 +109,18 @@
     },
     "packages/structured-data-models-client/src/sdm_client/_rust/materialize.py::Unresolved.to_string": {
       "moved": "T2.18: such a query is sent to materialize as the caller wrote it; the core resolves it and writes it back"
+    },
+    "packages/structured-data-models-client/src/sdm_client/_rust/materialize.py::_candidates": {
+      "moved": "T2.8: the host's half of the ranking's decomposition moved into the core: each candidate as the contract's scalar of its own type (a NumPy value as the Python value it holds, a missing one null, an unhashable one refused as an unhashable entity is, register P2D-1, any other value as its text, as the reference's _as_literal reads it); which candidates are one, how each is written into its question, and every refusal of one are the core's (sdm_request::ranking)"
+    },
+    "packages/structured-data-models-client/src/sdm_client/_rust/materialize.py::_decimal": {
+      "moved": "T2.8: the host's encoding of a decimal candidate as a d128 or d256 scalar of its digits and scale, part of _candidates; no rule of its own"
+    },
+    "packages/structured-data-models-client/src/sdm_client/_rust/predict.py::_ranked": {
+      "moved": "T2.8: the host's half of the moved reassembly (SDMClient._ranked): the core's rankings and scores given back as prediction and rankings items, each candidate as the caller gave it, the outputs the core names, and the unscored candidates by their positions"
+    },
+    "packages/structured-data-models-client/src/sdm_client/_rust/predict.py::_unscored": {
+      "moved": "T2.8: the words of the core's CANDIDATES_UNSCORED notice, as _candidates_no_context_teaches words them, naming each candidate as the caller gave it; no rule of its own"
     }
   }
 }

@@ -162,6 +162,49 @@ pub fn start(
                     Some(later)
                 }
             };
+            // A ranking's later questions, each as the first is (T2.8): the
+            // first asks after the first candidate given, at position 0.
+            let ranking = match &request.state.ranking {
+                None => None,
+                Some(ranking) => {
+                    let mut questions = vec![(
+                        0,
+                        ranking.value.clone(),
+                        Vec::new(),
+                        String::new(),
+                        String::new(),
+                    )];
+                    for part in &ranking.parts {
+                        let Some(Attachment::Bytes(payload)) = attachments.remove(&part.payload)
+                        else {
+                            return Err(internal("the payload is not the bytes named"));
+                        };
+                        let query: String = take_json(&mut attachments, part.query)?;
+                        let Some(request_id) = part.request_id.clone() else {
+                            return Err(CoreError::new(
+                                ErrorKind::InvalidRequest,
+                                ErrorCode::InvalidRequest,
+                                "a ranking's later question names no request id",
+                            )
+                            .with_field("field", Detail::text("state.ranking.request_id")));
+                        };
+                        questions.push((
+                            part.candidate,
+                            part.value.clone(),
+                            payload,
+                            query,
+                            request_id,
+                        ));
+                    }
+                    Some((questions, ranking.top_k))
+                }
+            };
+            let ranking = ranking.map(|(mut questions, top_k)| {
+                questions[0].2.clone_from(&payload);
+                questions[0].3.clone_from(&query);
+                questions[0].4.clone_from(&request.request_id);
+                (questions, top_k)
+            });
             let inputs = crate::predict::Inputs {
                 payload,
                 query,
@@ -171,6 +214,7 @@ pub fn start(
                 default_outputs: request.default_outputs,
                 inference_asked: request.inference_asked,
                 forecast,
+                ranking,
             };
             Run::new(move |asker| crate::predict::run(asker, inputs))
         }
@@ -209,6 +253,8 @@ pub(crate) fn materialize(
                 },
                 None => None,
             };
+            let candidates: Option<Vec<Scalar>> =
+                take_json_if(&mut attachments, request.candidates)?;
             // The decoder takes a seed of any size and sign; which seeds a
             // run takes is the core's rule (decision H7): not a negative
             // one, and none past the largest the provider declares (RS-7),
@@ -279,6 +325,7 @@ pub(crate) fn materialize(
                 description,
                 query,
                 indices,
+                candidates,
                 anchor_time: request.anchor_time,
                 seed: request.seed,
                 unseeded: request.unseeded,

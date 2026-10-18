@@ -158,6 +158,9 @@ pub struct Sampled {
     pub options: Options,
     /// The regression's statistic the caller chose.
     pub statistic: Option<String>,
+    /// How many candidates the call asked be kept (`top_k`), written into
+    /// the task as the engine writes it (T2.8).
+    pub top_k: Option<u32>,
     /// The text a float's class is spelled in: the shortest digits that
     /// read back to the double, laid out as the reference's `str` lays them
     /// out (`_class_label`). The parser crate holds it; the caller passes
@@ -993,6 +996,7 @@ pub fn build(sampled: &Sampled) -> Result<Built, CoreError> {
                 target: $target,
                 entity_table_names: vec![sampled.entity_table.clone()],
                 anchor_time_column: anchor_column.clone(),
+                top_k: sampled.top_k,
             }
         };
     }
