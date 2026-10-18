@@ -335,22 +335,6 @@
       "until": "materialize"
     },
     {
-      "site": "rule:instance_id_type",
-      "why": "a model answer whose instance id is neither an integer nor text; the scripted endpoint answers every id as the request wrote it, so not reached here",
-      "input": {
-        "base": "shop",
-        "pql": "PREDICT SUM(orders.price, 0, 30, days) FOR EACH users.user_id",
-        "materialize": {
-          "indices": [
-            0,
-            1
-          ],
-          "anchor_time": "2024-03-01"
-        }
-      },
-      "until": "predict"
-    },
-    {
       "site": "rule:key_name_order",
       "why": "a table named as its key column; no probe found yet that makes another form of the name score",
       "input": {
@@ -571,41 +555,6 @@
         }
       },
       "until": "materialize"
-    },
-    {
-      "site": "rule:prediction_statistic",
-      "why": "a prediction statistic that is not text; the core's option check refuses it first (INVALID_REQUEST, field prediction_statistic)",
-      "input": {
-        "base": "shop",
-        "pql": "PREDICT SUM(orders.price, 0, 30, days) FOR EACH users.user_id",
-        "materialize": {
-          "indices": [
-            0,
-            1
-          ],
-          "anchor_time": "2024-03-01"
-        }
-      },
-      "until": "materialize",
-      "options": {
-        "prediction_statistic": 7
-      }
-    },
-    {
-      "site": "rule:prediction_type",
-      "why": "a classification answer of another type than the target's; the scripted endpoint answers the first class, so not reached here",
-      "input": {
-        "base": "shop",
-        "pql": "PREDICT users.country FOR EACH users.user_id",
-        "materialize": {
-          "indices": [
-            0,
-            1
-          ],
-          "anchor_time": "2024-03-01"
-        }
-      },
-      "until": "predict"
     },
     {
       "site": "rule:problem_type",
@@ -886,25 +835,6 @@
         }
       },
       "until": "predict"
-    },
-    {
-      "site": "rule:top_k",
-      "why": "the top_k option",
-      "input": {
-        "base": "shop",
-        "pql": "PREDICT SUM(orders.price, 0, 30, days) FOR EACH users.user_id",
-        "materialize": {
-          "indices": [
-            0,
-            1
-          ],
-          "anchor_time": "2024-03-01"
-        }
-      },
-      "until": "materialize",
-      "options": {
-        "top_k": 3
-      }
     },
     {
       "site": "rule:unseeded",

@@ -111,7 +111,7 @@
       "moved": "T2.18: such a query is sent to materialize as the caller wrote it; the core resolves it and writes it back"
     },
     "packages/structured-data-models-client/src/sdm_client/_rust/materialize.py::_candidates": {
-      "moved": "T2.8: the host's half of the ranking's decomposition moved into the core: each candidate as the contract's scalar of its own type (a NumPy value as the Python value it holds, a missing one null, an unhashable one refused as an unhashable entity is, register P2D-1, any other value as its text, as the reference's _as_literal reads it); which candidates are one, how each is written into its question, and every refusal of one are the core's (sdm_request::ranking)"
+      "moved": "T2.8: the host's half of the ranking's decomposition moved into the core: each candidate as the contract's scalar of its own type (a NumPy value as the Python value it holds, a missing one null, any other value as its text, an unhashable one too (register P2D-1), as the reference's _as_literal reads it); which candidates are one, how each is written into its question, and every refusal of one are the core's (sdm_request::ranking)"
     },
     "packages/structured-data-models-client/src/sdm_client/_rust/materialize.py::_decimal": {
       "moved": "T2.8: the host's encoding of a decimal candidate as a d128 or d256 scalar of its digits and scale, part of _candidates; no rule of its own"

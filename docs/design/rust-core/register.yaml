@@ -6475,7 +6475,7 @@ entries:
 # --- lane D entries (P2D-1..19) ---
 
 - id: P2D-1
-  title: On the core route a ranking candidate Python cannot hash is refused by name, where the reference raises TypeError
+  title: On the core route a ranking candidate Python cannot hash is written as its text, where the reference raises TypeError
   kind: change
   old_behavior: >-
     The reference's PredictiveQuery.materialize of a ranking keeps each
@@ -6485,9 +6485,12 @@ entries:
   new_behavior: >-
     On the core route, which only SDM_CORE_ROUTES forces in this build, the
     Python host hands the core each candidate as the contract's scalar of
-    its own type (T2.8), and refuses one it cannot hash before the core
-    runs: StructuredDataError, INVALID_REQUEST, field candidates, as it
-    refuses an entity it cannot hash (_validate_materialize_args).
+    its own type (T2.8), and one no scalar holds as its text (str), as the
+    reference writes any such value into its question (_as_literal); a
+    candidate Python cannot hash is one of those. Its question then names
+    a row by that text: on a column of numbers the core refuses it,
+    INVALID_REQUEST, as a question of the wrong type; on a column of text
+    it is asked about.
   affected_inputs: >-
     PredictiveQuery.materialize of a ranking (RANK TOP k) on the core route
     over a DuckDB, SQLite or Postgres source with a candidate Python cannot
@@ -6498,8 +6501,8 @@ entries:
   approved_by: null
   decision_ref: null
   notes: >-
-    Approver: reviewer. A named error in place of a crash (lessons 18 and
-    21); the call answers nothing on either route. Measured by the
+    Approver: reviewer. In place of a crash (lessons 18 and 21); the call
+    the reference crashes on is a caller's mistake. Measured by the
     implementer's probe of the ranking's inputs (tracker-T2.8.md, Probes).
 
 - id: P2D-2

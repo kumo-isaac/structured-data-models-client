@@ -212,14 +212,9 @@ def _candidates(candidates: Sequence[Any]) -> list[dict[str, Any]]:
     decimal as one of its digits and scale; an integer as the narrowest of
     ``i64``, ``u64`` and a decimal of scale 0 that holds it; a float as the
     double it is; and any other value, an infinite decimal among them, as
-    its text (``str``), as the reference writes one. What each means as a
-    candidate is the core's.
-
-    Raises:
-        StructuredDataError: A candidate Python cannot hash, which names
-            no row, ``INVALID_REQUEST`` (register P2D-1), where the
-            reference's ``dict.fromkeys`` raises ``TypeError``.
-    """
+    its text (``str``), as the reference writes one; one Python cannot
+    hash too, where the reference's ``dict.fromkeys`` raises ``TypeError``
+    (register P2D-1). What each means as a candidate is the core's."""
     import contextlib
     from decimal import Decimal
 
@@ -227,16 +222,6 @@ def _candidates(candidates: Sequence[Any]) -> list[dict[str, Any]]:
 
     written = []
     for value in candidates:
-        try:
-            hash(value)
-        except TypeError:
-            raise StructuredDataError(
-                f'a candidate names a row by its key, and a '
-                f'{type(value).__name__} is not one: a key is looked up by '
-                f'value, so it has to be hashable',
-                code='INVALID_REQUEST',
-                details={'field': 'candidates'},
-            ) from None
         if hasattr(value, 'item'):
             with contextlib.suppress(AttributeError, ValueError):
                 value = value.item()
