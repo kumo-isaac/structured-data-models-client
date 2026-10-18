@@ -183,7 +183,7 @@ pub(crate) struct Inputs {
     pub indices: Option<ArrowData>,
     /// The rows a ranking is over (`Materialize.candidates`), as the host
     /// gave them (T2.8).
-    pub candidates: Option<Vec<Scalar>>,
+    pub candidates: Option<Vec<sdm_contract::ops::GivenCandidate>>,
     pub anchor_time: Option<Scalar>,
     pub seed: Option<Seed>,
     pub unseeded: bool,

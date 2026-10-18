@@ -6475,7 +6475,7 @@ entries:
 # --- lane D entries (P2D-1..19) ---
 
 - id: P2D-1
-  title: On the core route a ranking candidate Python cannot hash is written as its text, where the reference raises TypeError
+  title: On the core route a ranking candidate Python cannot hash is refused by name, where the reference raises TypeError
   kind: change
   old_behavior: >-
     The reference's PredictiveQuery.materialize of a ranking keeps each
@@ -6484,55 +6484,25 @@ entries:
     a dict, a set).
   new_behavior: >-
     On the core route, which only SDM_CORE_ROUTES forces in this build, the
-    Python host hands the core each candidate as the contract's scalar of
-    its own type (T2.8), and one no scalar holds as its text (str), as the
-    reference writes any such value into its question (_as_literal); a
-    candidate Python cannot hash is one of those. Its question then names
-    a row by that text: on a column of numbers the core refuses it,
-    INVALID_REQUEST, as a question of the wrong type; on a column of text
-    it is asked about.
+    Python host hands the core each candidate as the contract's given
+    candidate (T2.8), one it cannot hash as unreadable, the contract's word
+    for a value no contract type holds (decision E101), and the core refuses
+    it before any candidate is kept: StructuredDataError, INVALID_REQUEST,
+    field candidates, rule candidate_unreadable, reason not_a_key, naming
+    the candidate by its position.
   affected_inputs: >-
     PredictiveQuery.materialize of a ranking (RANK TOP k) on the core route
     over a DuckDB, SQLite or Postgres source with a candidate Python cannot
     hash.
   cases: [T2.8]
-  refs: [T2.8]
+  refs: [T2.8, E66, E101]
   status: proposed
   approved_by: null
   decision_ref: null
   notes: >-
-    Approver: reviewer. In place of a crash (lessons 18 and 21); the call
-    the reference crashes on is a caller's mistake. Measured by the
-    implementer's probe of the ranking's inputs (tracker-T2.8.md, Probes).
-
-- id: P2D-2
-  title: On the core route an answer's rankings member made of pairs whose first member is not text is refused, where the reference makes a mapping of it
-  kind: change
-  old_behavior: >-
-    The reference's bindings read an item's rankings with _mapping_tuple,
-    dict(member) of each member: a mapping as it is, and a list of pairs as
-    the mapping of its pairs, whatever the type of each pair's first member
-    (a number, a boolean or null among them).
-  new_behavior: >-
-    The core reads an item's rankings as the bindings do (T2.8, sdm_wire's
-    response::mappings) and gives each member back as the JSON text of the
-    mapping, which a JSON object holds only with text names; a pair whose
-    first member is not text is refused, INVALID_RESPONSE, field
-    prediction.rankings, reason not_a_mapping.
-  affected_inputs: >-
-    SDMClient.predict on the core route of a request whose answer carries an
-    item's rankings member that is a list of pairs whose first member is a
-    number, a boolean or null.
-  cases: [T2.8]
-  refs: [T2.8]
-  status: proposed
-  approved_by: null
-  decision_ref: null
-  notes: >-
-    Approver: reviewer. No endpoint the contract describes answers a
-    ranking as pairs; the item's rankings field is a list of mappings.
-    Measured by the implementer's reading of _mapping_tuple against
-    sdm_wire's mappings (tracker-T2.8.md, Probes).
+    Approver: reviewer, a named error in place of a crash (E66(b)). The
+    call answers nothing on either route. Measured by the implementer's
+    probe of the ranking's inputs (tracker-T2.8.md, Probes).
 
 # --- lane E entries (P2E-1..19) ---
 

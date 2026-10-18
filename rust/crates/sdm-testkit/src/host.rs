@@ -30,9 +30,10 @@ use duckdb::arrow::datatypes::{Field, Schema};
 use sdm_contract::data::{AttachmentId, Dialect, FetchPlan, ProviderChoice, SqlParam};
 use sdm_contract::facts::PlatformFacts;
 use sdm_contract::ops::{
-    DescribeSource, Dtype, EditSchema, ForecastStep, Materialize, Operation, OperationResult,
-    Predict, ProfileSpec, QueryColumn, QuerySchema, QueryTable, Ranking, RankingPart, RequestBatch,
-    RequestState, SamplerState, Seed, SourceDescription, SourceSpec, ValidateQuery,
+    DescribeSource, Dtype, EditSchema, ForecastStep, GivenCandidate, Materialize, Operation,
+    OperationResult, Predict, ProfileSpec, QueryColumn, QuerySchema, QueryTable, Ranking,
+    RankingPart, RequestBatch, RequestState, SamplerState, Seed, SourceDescription, SourceSpec,
+    ValidateQuery,
 };
 use sdm_contract::run::{FetchOutcome, FetchReply, ModelOutcome, ModelReply, StartRun};
 use sdm_contract::{
@@ -993,31 +994,34 @@ fn edit_schema(
 }
 
 /// A ranking's candidates as the case names them, each the contract scalar
-/// the Python host writes of the same value (T2.8): an integer an `i64`, a
+/// the Python host writes of the same value, as a given value (T2.8): an integer an `i64`, a
 /// `u64` past it, and past both a decimal of scale 0; text `utf8`.
-fn candidates_of(given: &[Index]) -> Result<Vec<Scalar>> {
+fn candidates_of(given: &[Index]) -> Result<Vec<GivenCandidate>> {
     given
         .iter()
-        .map(|index| match index {
-            Index::Text(text) => Ok(Scalar::Utf8(text.clone())),
-            Index::Integer(digits) => {
-                if let Ok(value) = digits.parse::<i64>() {
-                    return Ok(Scalar::Int64(value));
+        .map(|index| -> Result<Scalar> {
+            match index {
+                Index::Text(text) => Ok(Scalar::Utf8(text.clone())),
+                Index::Integer(digits) => {
+                    if let Ok(value) = digits.parse::<i64>() {
+                        return Ok(Scalar::Int64(value));
+                    }
+                    if let Ok(value) = digits.parse::<u64>() {
+                        return Ok(Scalar::UInt64(value));
+                    }
+                    let value: i128 = digits
+                        .parse()
+                        .map_err(|_| anyhow!("a candidate past 38 digits, which no case writes"))?;
+                    let precision = u8::try_from(digits.trim_start_matches('-').len())?;
+                    Ok(Scalar::Decimal128 {
+                        precision,
+                        scale: 0,
+                        value,
+                    })
                 }
-                if let Ok(value) = digits.parse::<u64>() {
-                    return Ok(Scalar::UInt64(value));
-                }
-                let value: i128 = digits
-                    .parse()
-                    .map_err(|_| anyhow!("a candidate past 38 digits, which no case writes"))?;
-                let precision = u8::try_from(digits.trim_start_matches('-').len())?;
-                Ok(Scalar::Decimal128 {
-                    precision,
-                    scale: 0,
-                    value,
-                })
             }
         })
+        .map(|scalar| scalar.map(GivenCandidate::Value))
         .collect()
 }
 

@@ -204,31 +204,38 @@ def _indices(indices: Sequence[Any]) -> Any:
     return pa.table({'indices': column})
 
 
-def _candidates(candidates: Sequence[Any]) -> list[dict[str, Any]]:
-    r"""A ranking's candidates as the contract's scalars, each of its own
-    type, as the reference's ``_as_literal`` reads a candidate (T2.8): a
-    NumPy value as the Python value it holds (``.item()``); a missing one
-    (``None``, a NaN, ``pd.NA``, ``pd.NaT``) null; a boolean; a finite
-    decimal as one of its digits and scale; an integer as the narrowest of
-    ``i64``, ``u64`` and a decimal of scale 0 that holds it; a float as the
-    double it is; and any other value, an infinite decimal among them, as
-    its text (``str``), as the reference writes one; one Python cannot
-    hash too, where the reference's ``dict.fromkeys`` raises ``TypeError``
-    (register P2D-1). What each means as a candidate is the core's."""
+def _candidates(candidates: Sequence[Any]) -> list[Any]:
+    r"""A ranking's candidates as the contract's given candidates, each a
+    scalar of its own type, as the reference's ``_as_literal`` reads a
+    candidate (T2.8): a NumPy value as the Python value it holds
+    (``.item()``); a missing one (``None``, a NaN, ``pd.NA``, ``pd.NaT``)
+    null; a boolean; a finite decimal as one of its digits and scale; an
+    integer as the narrowest of ``i64``, ``u64`` and a decimal of scale 0
+    that holds it; a float as the double it is; and any other value, an
+    infinite decimal among them, as its text (``str``), as the reference
+    writes one. One Python cannot hash, which the reference's
+    ``dict.fromkeys`` fails on, is ``unreadable``, the contract's word for a
+    value of the host's no contract type holds (decision E101), which the
+    core refuses by name. What each means as a candidate is the core's."""
     import contextlib
     from decimal import Decimal
 
     from sdm_client.wire.dtypes import _is_missing
 
-    written = []
+    written: list[Any] = []
     for value in candidates:
+        try:
+            hash(value)
+        except TypeError:
+            written.append(codec.UNREADABLE)
+            continue
         if hasattr(value, 'item'):
             with contextlib.suppress(AttributeError, ValueError):
                 value = value.item()
         if _is_missing(value):
-            written.append({'t': 'null'})
+            scalar: dict[str, Any] = {'t': 'null'}
         elif isinstance(value, bool):
-            written.append({'t': 'bool', 'v': value})
+            scalar = {'t': 'bool', 'v': value}
         elif isinstance(value, Decimal) and value.is_finite():
             sign, digits, exponent = value.as_tuple()
             assert isinstance(exponent, int)
@@ -236,18 +243,19 @@ def _candidates(candidates: Sequence[Any]) -> list[dict[str, Any]]:
                 exponent, 0
             )
             scale = max(-exponent, 0)
-            written.append(_decimal(-unscaled if sign else unscaled, scale))
+            scalar = _decimal(-unscaled if sign else unscaled, scale)
         elif isinstance(value, int):
             if -(2**63) <= value < 2**63:
-                written.append(codec.integer('i64', value))
+                scalar = codec.integer('i64', value)
             elif 0 <= value < 2**64:
-                written.append(codec.integer('u64', value))
+                scalar = codec.integer('u64', value)
             else:
-                written.append(_decimal(value, 0))
+                scalar = _decimal(value, 0)
         elif isinstance(value, float):
-            written.append({'t': 'f64', 'v': repr(value)})
+            scalar = {'t': 'f64', 'v': repr(value)}
         else:
-            written.append({'t': 'utf8', 'v': str(value)})
+            scalar = {'t': 'utf8', 'v': str(value)}
+        written.append({'value': scalar})
     return written
 
 

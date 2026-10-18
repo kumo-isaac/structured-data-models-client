@@ -622,6 +622,20 @@ pub enum Given<T> {
 
 // --- materialize and predict --------------------------------------------------
 
+/// One candidate of a ranking as a host gives it (`Materialize.candidates`,
+/// T2.8): `{"value": <scalar>}`, the host's value as the contract's scalar
+/// of its own type (a missing value `null`, a value of a type no scalar
+/// holds as its text, as the reference writes such a value into its
+/// question); or `unreadable`, a value the host cannot look up by value (in
+/// Python, one it cannot hash), which names no row and which the core
+/// refuses by name, as the reference fails on it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum GivenCandidate {
+    Value(Scalar),
+    Unreadable,
+}
+
 /// Build a request for a query over a described source.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -642,9 +656,8 @@ pub struct Materialize {
     pub indices: Option<AttachmentId>,
     /// The rows a ranking (`RANK TOP k`) is over, as the caller named them
     /// (contract v26, optional, T2.8): a bytes attachment of a JSON list of
-    /// scalars, each candidate as the host's value is written as the
-    /// contract's scalar of its own type, a missing value `null` and a value
-    /// of a type no scalar holds as its text, so values of several types
+    /// [`GivenCandidate`]s, each candidate as the host's value is written as
+    /// the contract's scalar of its own type, so values of several types
     /// keep each its own. The core asks a ranking as one question per
     /// distinct candidate, writing each into its question by the type of
     /// the column ranked, and refuses candidates on any other question.
@@ -1146,7 +1159,7 @@ pub struct Attachments {
     #[schemars(rename = "Materialize.values")]
     pub materialize_values: CallValues,
     #[schemars(rename = "Materialize.candidates")]
-    pub materialize_candidates: Vec<Scalar>,
+    pub materialize_candidates: Vec<GivenCandidate>,
     #[schemars(rename = "SamplerState.memo")]
     pub sampler_state_memo: SamplerMemo,
     #[schemars(rename = "RequestState.payload")]

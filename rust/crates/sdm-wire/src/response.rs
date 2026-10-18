@@ -224,46 +224,70 @@ fn probability(value: &Value) -> Result<f64, Refused> {
 
 /// A rankings field as the bindings' `_mapping_tuple` reads it, `tuple(
 /// dict(item) for item in value)`: each member a mapping as Python's `dict`
-/// makes one, of an object as it is, of a list of pairs (each a list of two,
-/// its first text, or text of two characters, a character to a character),
-/// and of empty text none; text iterates its characters and an object its
-/// names, each made a mapping as a member is. Anything else is refused
-/// (`not_a_mapping`), as `dict` refuses it, and so is a pair whose first
-/// member is not text, which a JSON object cannot hold as a name.
+/// makes one, of an object as it is, of a list of pairs (each a list of two
+/// whose first member a dict may key by, text, a number, a boolean or null,
+/// or text of two characters, a character to a character), and of empty
+/// text none; text iterates its characters and an object its names, each
+/// made a mapping as a member is. A key given twice keeps its first place
+/// and spelling and takes the last value, keys equal as Python's are (`1`,
+/// `1.0` and `true` one key, a NaN none but itself). A mapping keyed by text
+/// alone is a JSON object; one with another key is the list of its pairs,
+/// `[[key, value], ...]`, as JSON can hold no other key. Anything else is
+/// refused (`not_a_mapping`), as `dict` refuses it.
 pub fn mappings(value: &Value) -> Result<Vec<Value>, Refused> {
     const FIELD: &str = "prediction.rankings";
     let not = || refused(FIELD, "not_a_mapping");
     // Two characters, as `dict` reads a pair from text.
-    let pair_of = |text: &str| -> Option<(String, Value)> {
+    let pair_of = |text: &str| -> Option<(Value, Value)> {
         let mut chars = text.chars();
         let (Some(a), Some(b), None) = (chars.next(), chars.next(), chars.next()) else {
             return None;
         };
-        Some((a.to_string(), Value::Text(b.to_string())))
+        Some((Value::Text(a.to_string()), Value::Text(b.to_string())))
     };
     let mapping = |member: &Value| -> Result<Value, Refused> {
         match member {
             Value::Object(_) => Ok(member.clone()),
             Value::Text(text) if text.is_empty() => Ok(Value::Object(vec![])),
             Value::Array(pairs) => {
-                let mut built: Vec<(String, Value)> = Vec::new();
+                let mut built: Vec<(Value, Value)> = Vec::new();
                 for pair in pairs {
-                    let (name, value) = match pair {
+                    let (key, value) = match pair {
                         Value::Array(two) => match two.as_slice() {
-                            [Value::Text(name), value] => (name.clone(), value.clone()),
+                            [Value::Array(_) | Value::Object(_), _] => return Err(not()),
+                            [key, value] => (key.clone(), value.clone()),
                             _ => return Err(not()),
                         },
                         Value::Text(text) => pair_of(text).ok_or_else(not)?,
                         _ => return Err(not()),
                     };
-                    // A name given twice keeps its place and takes the
-                    // last value, as a dict does.
-                    match built.iter_mut().find(|(n, _)| *n == name) {
+                    let named = key_of(&key);
+                    match built
+                        .iter_mut()
+                        .find(|(k, _)| named.is_some() && key_of(k) == named)
+                    {
                         Some(kept) => kept.1 = value,
-                        None => built.push((name, value)),
+                        None => built.push((key, value)),
                     }
                 }
-                Ok(Value::Object(built))
+                if built.iter().all(|(k, _)| matches!(k, Value::Text(_))) {
+                    Ok(Value::Object(
+                        built
+                            .into_iter()
+                            .filter_map(|(k, v)| match k {
+                                Value::Text(name) => Some((name, v)),
+                                _ => None,
+                            })
+                            .collect(),
+                    ))
+                } else {
+                    Ok(Value::Array(
+                        built
+                            .into_iter()
+                            .map(|(k, v)| Value::Array(vec![k, v]))
+                            .collect(),
+                    ))
+                }
             }
             _ => Err(not()),
         }
@@ -279,6 +303,45 @@ pub fn mappings(value: &Value) -> Result<Vec<Value>, Refused> {
             .map(|(name, _)| mapping(&Value::Text(name.clone())))
             .collect(),
         _ => Err(not()),
+    }
+}
+
+/// A dict key as Python's equality holds it: text by its text, null as
+/// itself, a boolean or a number by its exact value (an integer's digits, a
+/// whole double's digits, another double by its bits); none for a NaN, which
+/// equals no other key.
+fn key_of(key: &Value) -> Option<String> {
+    match key {
+        Value::Text(text) => Some(format!("s{text}")),
+        Value::Null => Some("z".to_owned()),
+        Value::Bool(b) => Some(format!("n{}", u8::from(*b))),
+        Value::Number(token) if is_integer_token(token) => {
+            let digits = token.trim_start_matches('-').trim_start_matches('0');
+            let sign = if token.starts_with('-') && !digits.is_empty() {
+                "-"
+            } else {
+                ""
+            };
+            Some(format!(
+                "n{sign}{}",
+                if digits.is_empty() { "0" } else { digits }
+            ))
+        }
+        Value::Number(token) => {
+            let float: f64 = token.parse().ok()?;
+            if float.is_nan() {
+                None
+            } else if float.is_finite() && float.fract() == 0.0 {
+                Some(if float == 0.0 {
+                    "n0".to_owned()
+                } else {
+                    format!("n{float:.0}")
+                })
+            } else {
+                Some(format!("f{:016x}", float.to_bits()))
+            }
+        }
+        _ => None,
     }
 }
 

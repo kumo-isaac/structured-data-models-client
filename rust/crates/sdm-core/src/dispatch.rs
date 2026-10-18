@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use sdm_contract::ops::{
-    HeldSchema, Operation, OperationResult, QuerySchema, REQUEST_STATE_VERSION,
+    GivenCandidate, HeldSchema, Operation, OperationResult, QuerySchema, REQUEST_STATE_VERSION,
     SAMPLER_STATE_VERSION, SamplerMemo, SchemaEdit, SourceDescription, SourceSpec,
 };
 use sdm_contract::run::StartRun;
@@ -253,7 +253,7 @@ pub(crate) fn materialize(
                 },
                 None => None,
             };
-            let candidates: Option<Vec<Scalar>> =
+            let candidates: Option<Vec<GivenCandidate>> =
                 take_json_if(&mut attachments, request.candidates)?;
             // The decoder takes a seed of any size and sign; which seeds a
             // run takes is the core's rule (decision H7): not a negative

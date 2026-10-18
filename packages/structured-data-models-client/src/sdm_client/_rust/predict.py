@@ -201,6 +201,14 @@ def _as_answered(row: dict[str, Any]) -> Any:
     return row.get('prediction')
 
 
+def _mapping(text: str) -> dict[Any, Any]:
+    r"""An item's rankings member as the reference's item holds it, from
+    the JSON text the core gives: an object, or, where a key is not text,
+    the list of its pairs."""
+    read = json.loads(text)
+    return dict(read)
+
+
 def _id(row: dict[str, Any]) -> Any:
     r"""A row's id as the reference's item holds it: where the core's ids
     are not all of one type, or one is of another than an integer or text
@@ -464,13 +472,14 @@ def predict(
                 if row.get('probabilities') is None
                 else dict(row['probabilities']),
                 # An item's scores and rankings (T2.8), each mapping given
-                # as the JSON text of the reference's item value.
+                # as the JSON text of the reference's item value: an object,
+                # or the list of its pairs where a key is not text.
                 scores=None
                 if row.get('scores') is None
                 else tuple(row['scores']),
                 rankings=None
                 if row.get('rankings') is None
-                else tuple(json.loads(text) for text in row['rankings']),
+                else tuple(_mapping(text) for text in row['rankings']),
             )
             for row in rows
         ],

@@ -291,7 +291,7 @@
         "Materialize.candidates": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/Scalar"
+            "$ref": "#/$defs/GivenCandidate"
           }
         },
         "SamplerState.memo": {
@@ -1869,6 +1869,29 @@
     "CallValues": {
       "type": "object"
     },
+    "GivenCandidate": {
+      "description": "One candidate of a ranking as a host gives it (`Materialize.candidates`,\nT2.8): `{\"value\": <scalar>}`, the host's value as the contract's scalar\nof its own type (a missing value `null`, a value of a type no scalar\nholds as its text, as the reference writes such a value into its\nquestion); or `unreadable`, a value the host cannot look up by value (in\nPython, one it cannot hash), which names no row and which the core\nrefuses by name, as the reference fails on it.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "unreadable"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "#/$defs/Scalar"
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
     "SamplerMemo": {
       "description": "[`SamplerState`]'s memo: what the runs read, and of what.",
       "type": "object",
@@ -2953,7 +2976,7 @@
               ]
             },
             "candidates": {
-              "description": "The rows a ranking (`RANK TOP k`) is over, as the caller named them\n(contract v26, optional, T2.8): a bytes attachment of a JSON list of\nscalars, each candidate as the host's value is written as the\ncontract's scalar of its own type, a missing value `null` and a value\nof a type no scalar holds as its text, so values of several types\nkeep each its own. The core asks a ranking as one question per\ndistinct candidate, writing each into its question by the type of\nthe column ranked, and refuses candidates on any other question.",
+              "description": "The rows a ranking (`RANK TOP k`) is over, as the caller named them\n(contract v26, optional, T2.8): a bytes attachment of a JSON list of\n[`GivenCandidate`]s, each candidate as the host's value is written as\nthe contract's scalar of its own type, so values of several types\nkeep each its own. The core asks a ranking as one question per\ndistinct candidate, writing each into its question by the type of\nthe column ranked, and refuses candidates on any other question.",
               "anyOf": [
                 {
                   "$ref": "#/$defs/AttachmentId"

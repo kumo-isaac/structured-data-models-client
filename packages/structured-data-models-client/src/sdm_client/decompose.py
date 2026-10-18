@@ -293,6 +293,12 @@ def said_as_parts_are(
             )
         elif rule == 'candidate_not_whole':
             said = f'{value!r} cannot name a row to rank'
+        elif rule == 'candidate_unreadable':
+            said = (
+                f'a candidate names a row by its key, and a '
+                f'{type(value).__name__} is not one: a key is looked up by '
+                f'value, so it has to be hashable'
+            )
         elif rule == 'candidate_unwritable':
             said = (
                 f'the candidate {value!r} cannot be written into a query: a '

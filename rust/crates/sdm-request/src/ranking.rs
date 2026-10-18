@@ -26,6 +26,7 @@ use std::sync::Arc;
 use arrow_array::builder::{Float64Builder, ListBuilder, StringBuilder};
 use arrow_array::{Array, ArrayRef, Int64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
+use sdm_contract::ops::GivenCandidate;
 use sdm_contract::{CoreError, Detail, ErrorCode, ErrorKind, Scalar};
 
 use crate::predict::{Entity, Part, id_columns};
@@ -104,6 +105,9 @@ pub enum Candidate {
     Text(String),
     /// A value of another type, by the type's name.
     Other(String),
+    /// A value the host could not look up by value (`GivenCandidate::
+    /// Unreadable`).
+    Unreadable,
 }
 
 impl Candidate {
@@ -133,15 +137,18 @@ impl Candidate {
                 Some(format!("n{}", trimmed(decimal_text(*value, *scale))))
             }
             Candidate::Text(text) => Some(format!("s{text}")),
-            Candidate::Other(_) => None,
+            Candidate::Other(_) | Candidate::Unreadable => None,
         }
     }
 }
 
-/// A candidate as the host gave it, from its contract scalar: a null or a
-/// NaN missing; a decimal past 128 bits, or a scalar of a type a host does
-/// not write a candidate as, another type, by its name.
-pub fn read(scalar: &Scalar) -> Candidate {
+/// A candidate as the host gave it ([`GivenCandidate`]), from its contract
+/// scalar: a null or a NaN missing; a decimal past 128 bits, or a scalar of
+/// a type a host does not write a candidate as, another type, by its name.
+pub fn read(given: &GivenCandidate) -> Candidate {
+    let GivenCandidate::Value(scalar) = given else {
+        return Candidate::Unreadable;
+    };
     match scalar {
         Scalar::Null => Candidate::Missing,
         Scalar::Bool(b) => Candidate::Bool(*b),
@@ -226,6 +233,13 @@ fn refused(rule: &'static str, position: u32) -> CoreError {
     .with_field("field", Detail::text("candidates"))
     .with_field("rule", Detail::text(rule))
     .with_field("candidate", Detail::Scalar(Scalar::UInt32(position)))
+}
+
+/// The refusal of a candidate the host could not look up by value
+/// (`candidate_unreadable`, reason `not_a_key`), which names no row: the
+/// reference's `dict.fromkeys` fails on it before anything is written.
+pub fn unreadable(position: u32) -> CoreError {
+    refused("candidate_unreadable", position).with_field("reason", Detail::text("not_a_key"))
 }
 
 /// Whether Python's `str.isspace` holds of `c`: Unicode white space, and
@@ -336,6 +350,7 @@ pub fn literal(
     match &value {
         Candidate::Missing => return Err(refused("candidate_missing", position)),
         Candidate::Bool(_) => return Err(refused("candidate_bool", position)),
+        Candidate::Unreadable => return Err(unreadable(position)),
         Candidate::Other(name) => {
             return Err(CoreError::new(
                 ErrorKind::Unsupported,

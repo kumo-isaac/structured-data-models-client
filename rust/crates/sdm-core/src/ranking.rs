@@ -114,6 +114,16 @@ pub(crate) async fn materialize(
         .with_field("column", Detail::text(&ranked.column)));
     };
     let candidates: Vec<Candidate> = given_candidates.iter().map(ranking::read).collect();
+    // A candidate the host could not look up by value, refused before any
+    // is kept once, where the reference's `dict.fromkeys` fails on it.
+    if let Some(position) = candidates
+        .iter()
+        .position(|c| matches!(c, Candidate::Unreadable))
+    {
+        return Err(ranking::unreadable(
+            u32::try_from(position).unwrap_or(u32::MAX),
+        ));
+    }
     let kept = ranking::distinct(&candidates);
     if kept.is_empty() {
         return Err(refused(

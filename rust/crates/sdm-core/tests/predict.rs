@@ -533,6 +533,9 @@ fn an_answer_the_result_does_not_carry_yet_is_refused_by_name() {
     for item in [
         r#"{"id":"2","row_index":0,"prediction":1.0,"scores":[0.5, "0.25"]}"#,
         r#"{"id":"2","row_index":0,"prediction":1.0,"rankings":[{"candidate":"x","score":0.5},[["k",1]],""]}"#,
+        // A key a dict takes that is not text, as the reference keys it:
+        // kept as the list of its pairs.
+        r#"{"id":"2","row_index":0,"prediction":1.0,"rankings":[[[1,"x"],[true,"y"],[null,0.5]]]}"#,
     ] {
         let (_, step) = answered(200, base.replace("ITEM", item).as_bytes());
         assert!(step.is_ok(), "{item}: {step:?}");
@@ -552,6 +555,10 @@ fn an_answer_the_result_does_not_carry_yet_is_refused_by_name() {
         ),
         (
             r#"{"id":"2","row_index":0,"prediction":1.0,"rankings":3}"#,
+            "prediction.rankings",
+        ),
+        (
+            r#"{"id":"2","row_index":0,"prediction":1.0,"rankings":[[[[1],"x"]]]}"#,
             "prediction.rankings",
         ),
     ] {
