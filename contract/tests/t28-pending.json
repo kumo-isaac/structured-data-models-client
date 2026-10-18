@@ -5,8 +5,7 @@
   "py:rank.batched@sqlite",
   "py:rank.batched@postgres",
   "rust:rank.batched",
-  "rust:rank.batched@sqlite",
-  "rust:vector:parts.failed-call-1"
+  "rust:rank.batched@sqlite"
  ],
  "authored": [
   "py:rank.top-k",
