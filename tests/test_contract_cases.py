@@ -303,6 +303,25 @@ T218_NAMES = tuple(
 )
 
 
+#: T2.8's S1 ranking cases (the design's T2.8a and T2.8b rows), none in the
+#: inventory: a ranking over named candidates through predict, its refusals
+#: before any call, and the forecast's top_k and MOST_PARTS refusals.
+T28_RANKING = (
+    'rank.top-k',
+    'rank.top-k-option',
+    'rank.top-k-zero',
+    'rank.no-candidates',
+    'rank.candidates-empty',
+    'rank.candidates-not-a-ranking',
+    'rank.most-parts',
+    'rank.batched',
+    'rank.unscored-candidate',
+    'rank.all-unscored',
+    'forecast.top-k',
+    'forecast.most-parts',
+)
+
+
 def test_every_inventory_case_is_a_committed_case_as_the_inventory_has_it() -> (
     None
 ):
@@ -326,7 +345,8 @@ def test_every_inventory_case_is_a_committed_case_as_the_inventory_has_it() -> (
     # each is an acceptance case carrying its call as far as the reference
     # goes. T2.19 adds the two-path sampling cases, acceptance cases through
     # predict, no inventory case either. T2.18 adds the column-name cases
-    # (KO2-36), each carrying its call through predict.
+    # (KO2-36), each carrying its call through predict. T2.8 adds the
+    # ranking cases, each carrying its call as far as the reference goes.
     assert set(committed) == {entry['id'] for entry in inventory['cases']} | {
         'base.adventureworks',
         'base.adventureworks.churn',
@@ -334,8 +354,9 @@ def test_every_inventory_case_is_a_committed_case_as_the_inventory_has_it() -> (
         *T20C_DECIMAL,
         *T219_SHAPES,
         *T218_NAMES,
+        *T28_RANKING,
     }
-    for case_id in (*T20C_DECIMAL, *T218_NAMES):
+    for case_id in (*T20C_DECIMAL, *T218_NAMES, *T28_RANKING):
         assert committed[case_id]['status'] == 'acceptance', case_id
         assert _held_to_its_input(committed[case_id]) == [], case_id
     for case_id in T219_SHAPES:
