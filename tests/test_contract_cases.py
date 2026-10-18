@@ -1297,8 +1297,17 @@ def _as_core(accepted: bool | None, error: Any = None) -> Any:
                 ) or []
                 outcome = observation['outcome']
                 if received:
+                    # A request asked in several calls (T2.8c): the last
+                    # call's body, and every call's in order under
+                    # `calls`, as the runner records them (T2.1g).
+                    several = (
+                        {'calls': [each['parsed'] for each in received]}
+                        if len(received) > 1
+                        else {}
+                    )
                     predicted = {
-                        'body': received[0]['parsed'],
+                        'body': received[-1]['parsed'],
+                        **several,
                         'model': 'kumo-relational',
                         'request_id': 'r1',
                         'metadata': {},
