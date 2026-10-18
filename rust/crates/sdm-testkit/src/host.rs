@@ -1547,10 +1547,13 @@ pub const REQUEST_ID: &str = "sdm-000000000000";
 /// `{"f64_bits": 16 hex digits}`, so no text form of a float is compared,
 /// and text as `{"utf8": text}`; from T1.28b, which lays out a
 /// classification's answers, a boolean as `{"bool": value}` and a class's
-/// probabilities as `{"map": [[class, its bits], ...]}`, in order.
+/// probabilities as `{"map": [[class, its bits], ...]}`, in order; from
+/// T2.8, which lays out a ranking's `scores` and `rankings` (contract v26),
+/// a list as `{"list": [cell, ...]}`, each member a cell as above.
 pub fn result_rows(data: &ArrowData) -> Result<Value> {
     use duckdb::arrow::array::{
-        Array, BooleanArray, Float64Array, Int64Array, MapArray, StringArray,
+        Array, BooleanArray, Float64Array, Int64Array, LargeListArray, ListArray, MapArray,
+        StringArray,
     };
     use duckdb::arrow::datatypes::DataType;
     let columns: Vec<Value> = data
@@ -1564,6 +1567,7 @@ pub fn result_rows(data: &ArrowData) -> Result<Value> {
                 DataType::Utf8 => "utf8",
                 DataType::Boolean => "bool",
                 DataType::Map(..) => "map",
+                DataType::List(..) | DataType::LargeList(..) => "list",
                 _ => "other",
             };
             json!({"name": f.name(), "type": kind})
@@ -1601,6 +1605,10 @@ pub fn result_rows(data: &ArrowData) -> Result<Value> {
                         })
                         .collect();
                     cells.push(json!({"map": pairs}));
+                } else if let Some(a) = column.as_any().downcast_ref::<ListArray>() {
+                    cells.push(json!({"list": list_cells(a.value(row).as_ref())?}));
+                } else if let Some(a) = column.as_any().downcast_ref::<LargeListArray>() {
+                    cells.push(json!({"list": list_cells(a.value(row).as_ref())?}));
                 } else {
                     bail!("a result column of a type this host does not record");
                 }
@@ -1609,6 +1617,34 @@ pub fn result_rows(data: &ArrowData) -> Result<Value> {
         }
     }
     Ok(json!({"columns": columns, "rows": rows}))
+}
+
+/// A list cell's members as [`result_rows`] records a cell: an integer,
+/// a float's bits, text or a boolean, a missing member `null`.
+fn list_cells(values: &dyn duckdb::arrow::array::Array) -> Result<Vec<Value>> {
+    use duckdb::arrow::array::{
+        BooleanArray, Float64Array, Int64Array, LargeStringArray, StringArray,
+    };
+    let any = values.as_any();
+    (0..values.len())
+        .map(|i| {
+            if values.is_null(i) {
+                Ok(Value::Null)
+            } else if let Some(a) = any.downcast_ref::<Int64Array>() {
+                Ok(json!({"i64": a.value(i).to_string()}))
+            } else if let Some(a) = any.downcast_ref::<Float64Array>() {
+                Ok(json!({"f64_bits": format!("{:016x}", a.value(i).to_bits())}))
+            } else if let Some(a) = any.downcast_ref::<StringArray>() {
+                Ok(json!({"utf8": a.value(i)}))
+            } else if let Some(a) = any.downcast_ref::<LargeStringArray>() {
+                Ok(json!({"utf8": a.value(i)}))
+            } else if let Some(a) = any.downcast_ref::<BooleanArray>() {
+                Ok(json!({"bool": a.value(i)}))
+            } else {
+                bail!("a list member of a type this host does not record")
+            }
+        })
+        .collect()
 }
 
 /// `predict` of the state `materialize` answered, handed back as this host
@@ -1735,7 +1771,15 @@ fn predict(
             );
         }
         bodies.push(sent);
-        let (status, answered) = endpoint::answer("POST", endpoint::PREDICTIONS, &body);
+        // The test's script where one stands in for the rule on this thread
+        // (`endpoint::answered_by`), its bytes as they travel; else the rule.
+        let (status, answered) = match endpoint::scripted(&body) {
+            Some(given) => given,
+            None => {
+                let (status, answered) = endpoint::answer("POST", endpoint::PREDICTIONS, &body);
+                (status, serde_json::to_vec(&answered)?)
+            }
+        };
         let reply = encode(&ControlMessage::ModelReply(ModelReply {
             id: call.id,
             outcome: ModelOutcome::Response {
@@ -1745,10 +1789,7 @@ fn predict(
             },
         }))
         .map_err(|_| anyhow!("a reply does not encode"))?;
-        let answer = BTreeMap::from([(
-            AttachmentId(1),
-            Attachment::Bytes(serde_json::to_vec(&answered)?),
-        )]);
+        let answer = BTreeMap::from([(AttachmentId(1), Attachment::Bytes(answered))]);
         if let Err(failed) = handle.reply(&reply, answer) {
             observed.answer = error_of(&failed)?;
             return Ok(());
