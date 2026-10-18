@@ -68,6 +68,10 @@ pub struct CatalogColumn {
 pub enum KeyKind {
     Primary,
     Unique,
+    /// A foreign key, by this table's columns: a key only to a column of
+    /// numbers handed over as its exact text
+    /// ([`crate::data::EXACT_NUMBER_MARKER`]), which it keeps as text.
+    Foreign,
     /// A constraint of another kind, which the reader leaves alone.
     Other,
 }
