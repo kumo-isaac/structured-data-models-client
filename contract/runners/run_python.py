@@ -2651,7 +2651,12 @@ def _call(
     if log is not None:
         log.stage = stage
     with (
-        serve() as (url, received),
+        # The scripted endpoint, a classification answered with its
+        # probabilities where the case says so (T2.8's ranking cases).
+        serve(probabilities=given.get('probabilities', False)) as (
+            url,
+            received,
+        ),
         warnings.catch_warnings(record=True) as shown,
     ):
         warnings.simplefilter('always')

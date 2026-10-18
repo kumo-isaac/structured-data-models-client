@@ -128,6 +128,10 @@ pub struct Input {
     #[serde(deserialize_with = "text")]
     pub pql: String,
     pub materialize: Materialize,
+    /// Whether the scripted endpoint answers a classification call asking
+    /// for probabilities with them (T2.8's ranking cases), a JSON boolean.
+    #[serde(default, deserialize_with = "present")]
+    pub probabilities: Option<bool>,
 }
 
 /// Keyword arguments to `Schema.from_source`, each as the case gives it.
