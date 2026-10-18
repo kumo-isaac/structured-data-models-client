@@ -1802,12 +1802,19 @@ def _sql(
     stop: str | None = None,
     large: bool = False,
     database: str = 'duckdb',
+    answered: bool = False,
 ) -> None:
     r"""Decision H9 against the reference: ``sql.count`` and ``sql.result``,
     with ``sql.text``, ``sql.parameters`` and ``sql.bindings`` reported;
     past the reference's ``stop`` (:func:`past_stop`), at that stage the
     reference's statements and bindings each against the runner's at its
-    position, and none after."""
+    position, and none after. Where the approved move is to a success
+    (``answered``, T2.1e), the call the reference refused answers instead,
+    so the reference's statements up to its refusal are no expectation of
+    that call's: its ``sql.count`` and ``sql.result`` differences are
+    reported as diagnostic, every other rule and every other call as
+    before; a move to a later refusal, an unapproved one or an answer the
+    reference gave too is held as ever."""
     stages = _stages(case, who)
     if stop is not None:
         stages = tuple(
@@ -1825,6 +1832,7 @@ def _sql(
     mine, theirs = _by_stage(observation), _by_stage(reference)
     assert mine is not None and theirs is not None
     for stage in stages:
+        since = len(report.failures)
         ours, refs = mine.get(stage, []), theirs.get(stage, [])
         if stage == stop and len(ours) > len(refs):
             # Those after the reference's own came after it stopped.
@@ -1835,23 +1843,25 @@ def _sql(
                 f'{len(refs)}',
                 'sql.count',
             )
-            continue
-        for position, (a, b) in enumerate(zip(ours, refs, strict=True)):
-            at = f'{where}: {stage} statement {position}'
-            if a['sql'] != b['sql']:
-                report.fail(f'{at}: text differs', 'sql.text')
-            if a['parameters'] != b['parameters']:
-                report.fail(f'{at}: parameters differ', 'sql.parameters')
-            _results(
-                report,
-                at,
-                a,
-                b,
-                position in ordered.get(stage, []),
-                (who, 'python-ref'),
-                large,
-                database,
-            )
+        else:
+            for position, (a, b) in enumerate(zip(ours, refs, strict=True)):
+                at = f'{where}: {stage} statement {position}'
+                if a['sql'] != b['sql']:
+                    report.fail(f'{at}: text differs', 'sql.text')
+                if a['parameters'] != b['parameters']:
+                    report.fail(f'{at}: parameters differ', 'sql.parameters')
+                _results(
+                    report,
+                    at,
+                    a,
+                    b,
+                    position in ordered.get(stage, []),
+                    (who, 'python-ref'),
+                    large,
+                    database,
+                )
+        if answered and stage == stop:
+            _approved_answer(report, since)
     mine_bound = _by_stage(observation, 'bindings') or {}
     theirs_bound = _by_stage(reference, 'bindings') or {}
     for stage in stages:
@@ -1876,6 +1886,23 @@ def _sql(
                     'columns included',
                     'sql.bindings',
                 )
+
+
+def _approved_answer(report: Report, since: int) -> None:
+    r"""The ``sql.count`` and ``sql.result`` failures since ``since``, of
+    a call an approved move turns from the reference's refusal into an
+    answer, as diagnostic notes; every other failure kept (T2.1e)."""
+    kept = []
+    for rule, text in report.failures[since:]:
+        if rule in ('sql.count', 'sql.result'):
+            report.notes.append(
+                f'diagnostic (an approved answer where the reference '
+                f'refused): {rule}: {text}'
+            )
+        else:
+            kept.append((rule, text))
+    del report.failures[since:]
+    report.failures.extend(kept)
 
 
 def _sql_core(
@@ -2163,6 +2190,9 @@ def compare(
                     stop,
                     large,
                     database,
+                    # The approved move is to an answer (past_stop's success).
+                    answered=stop is not None
+                    and (wanted or {}).get('result') == 'success',
                 )
                 theirs = ref['identity']['versions']['duckdb']
                 mine = observation['identity']['versions']['duckdb']
