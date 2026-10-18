@@ -546,18 +546,15 @@ fn times_ns(array: &ArrayRef, column: &str) -> Result<Vec<Option<i64>>, CoreErro
 /// DuckDB's `'-infinity'` in a timestamp of any unit: `-(2^63 - 1)`.
 const NEGATIVE_INFINITY: i64 = -i64::MAX;
 
-/// The smallest times of the time bounds in nanoseconds, as
-/// [`times_ns`], but [`NEGATIVE_INFINITY`] in a coarser unit read as
-/// [`TIME_MIN`], `pd.Timestamp.min`: the reference reads that bound (the
-/// time bounds' cast to `TIMESTAMP` turns a `TIMESTAMP_NS`, `_S` or `_MS`
-/// `'-infinity'` into the microsecond one) as `datetime.min`, 0001-01-01,
-/// which is before every anchor a nanosecond count holds, as `TIME_MIN`
-/// is, and goes on (T1.36 fix 3). Any other time past what nanoseconds
-/// hold, a finite one or `'infinity'`, is refused as before (DT-14).
-fn earliest_ns(array: &ArrayRef, column: &str) -> Result<Vec<Option<i64>>, CoreError> {
-    times_ns_from(array, column, true)
-}
-
+/// A time column's values in nanoseconds, a zone-less timestamp's only;
+/// for the smallest times of the time bounds (`earliest`),
+/// [`NEGATIVE_INFINITY`] in a coarser unit read as [`TIME_MIN`],
+/// `pd.Timestamp.min`: the reference reads that bound (the time bounds'
+/// cast to `TIMESTAMP` turns a `TIMESTAMP_NS`, `_S` or `_MS` `'-infinity'`
+/// into the microsecond one) as `datetime.min`, 0001-01-01, which is before
+/// every anchor a nanosecond count holds, as `TIME_MIN` is, and goes on
+/// (T1.36 fix 3). Any other time past what nanoseconds hold, a finite one
+/// or `'infinity'`, is refused as before (DT-14).
 fn times_ns_from(
     array: &ArrayRef,
     column: &str,
@@ -616,6 +613,72 @@ pub(crate) struct Times {
 }
 
 impl Times {
+    /// A bound of the time bounds in nanoseconds (`earliest` for the
+    /// smallest, [`times_ns_from`]), read as the reference reads each bound
+    /// its source returns (`Timestamp(value)`), whatever the column's type:
+    /// a zone-less timestamp as it is; a timestamp with a zone at its UTC
+    /// instant, the zone dropped, as the reference's engine reads an aware
+    /// time; a date at its midnight; a column holding no time, of whatever
+    /// type, as none; text by the reading the provider declares, a value no
+    /// reading takes refused by name.
+    fn bounds(
+        &self,
+        array: &ArrayRef,
+        column: &str,
+        earliest: bool,
+    ) -> Result<Vec<Option<i64>>, CoreError> {
+        macro_rules! unzoned {
+            ($t:ty) => {
+                Arc::new(
+                    array
+                        .as_primitive::<$t>()
+                        .clone()
+                        .with_timezone_opt::<Arc<str>>(None),
+                ) as ArrayRef
+            };
+        }
+        match array.data_type() {
+            DataType::Timestamp(_, None) => times_ns_from(array, column, earliest),
+            DataType::Timestamp(unit, Some(_)) => {
+                let unzoned = match unit {
+                    ArrowUnit::Second => unzoned!(TimestampSecondType),
+                    ArrowUnit::Millisecond => unzoned!(TimestampMillisecondType),
+                    ArrowUnit::Microsecond => unzoned!(TimestampMicrosecondType),
+                    ArrowUnit::Nanosecond => unzoned!(TimestampNanosecondType),
+                };
+                times_ns_from(&unzoned, column, earliest)
+            }
+            DataType::Date32 => array
+                .as_primitive::<Date32Type>()
+                .iter()
+                .map(|d| {
+                    d.map(|d| Instant::from_days(d).to_count(ArrowUnit::Nanosecond, column))
+                        .transpose()
+                })
+                .collect(),
+            _ if array.null_count() == array.len() => Ok(vec![None; array.len()]),
+            DataType::Utf8 => {
+                let values: Vec<Option<&str>> = array.as_string::<i32>().iter().collect();
+                let read = match self.text {
+                    Some(TextTimes::ValueByValue) => self.reader.each(&values),
+                    Some(TextTimes::ClientRules) => return Err(not_yet("text_time_rules")),
+                    None => return Err(not_yet("text_times")),
+                }
+                .map_err(text_unread)?;
+                values
+                    .iter()
+                    .zip(read)
+                    .map(|(value, at)| match (value, at) {
+                        (_, Some(at)) => at.to_count(ArrowUnit::Nanosecond, column).map(Some),
+                        (None, None) => Ok(None),
+                        (Some(_), None) => Err(not_yet("time_type")),
+                    })
+                    .collect()
+            }
+            _ => Err(not_yet("time_type")),
+        }
+    }
+
     /// `batch`, fetched from `table`, with each column whose meaning is a
     /// timestamp read so.
     pub(crate) fn read(
@@ -1015,7 +1078,11 @@ impl Memo<'_> {
 /// it, read by a run of this materializer before, as the reference's
 /// sampler reads them once and keeps them; the others read, in one
 /// request, and kept.
-async fn time_bounds(memo: &mut Memo<'_>, tables: &[&Table]) -> Result<Bounds, CoreError> {
+async fn time_bounds(
+    memo: &mut Memo<'_>,
+    times: &Times,
+    tables: &[&Table],
+) -> Result<Bounds, CoreError> {
     let mut unknown: Vec<(&Table, String)> = Vec::new();
     for table in tables {
         let column = table
@@ -1032,7 +1099,7 @@ async fn time_bounds(memo: &mut Memo<'_>, tables: &[&Table]) -> Result<Bounds, C
         }
     }
     if !unknown.is_empty() {
-        let read = read_bounds(memo.asker, &unknown).await?;
+        let read = read_bounds(memo.asker, times, &unknown).await?;
         for ((table, column), (min, max)) in unknown.into_iter().zip(read) {
             memo.memo.bounds.push(MemoBounds {
                 table: table.name.clone(),
@@ -1067,6 +1134,7 @@ async fn time_bounds(memo: &mut Memo<'_>, tables: &[&Table]) -> Result<Bounds, C
 /// order asked, one request for them all.
 async fn read_bounds(
     asker: &Asker,
+    times: &Times,
     tables: &[(&Table, String)],
 ) -> Result<Vec<(Option<i64>, Option<i64>)>, CoreError> {
     let answer = ask(
@@ -1095,8 +1163,8 @@ async fn read_bounds(
         .as_primitive_opt::<Int32Type>()
         .ok_or_else(|| crate::run::schema_mismatch("expected", Some(BOUNDS_POSITION), "not int32"))?
         .clone();
-    let mins = earliest_ns(named(&batch, BOUNDS_MIN)?, BOUNDS_MIN)?;
-    let maxs = times_ns(named(&batch, BOUNDS_MAX)?, BOUNDS_MAX)?;
+    let mins = times.bounds(named(&batch, BOUNDS_MIN)?, BOUNDS_MIN, true)?;
+    let maxs = times.bounds(named(&batch, BOUNDS_MAX)?, BOUNDS_MAX, false)?;
     let mut out = vec![None; tables.len()];
     for row in 0..batch.num_rows() {
         let at = positions
@@ -1894,7 +1962,7 @@ async fn one(asker: &Asker, inputs: Inputs) -> Result<Gathered, CoreError> {
     let anchor = match anchor_time {
         None if bounded.is_empty() => TIME_MIN,
         None => {
-            let read = time_bounds(&mut memo, &bounded).await?;
+            let read = time_bounds(&mut memo, &read_times, &bounded).await?;
             let max = read.max;
             bounds = Some(read);
             max
@@ -1921,7 +1989,7 @@ async fn one(asker: &Asker, inputs: Inputs) -> Result<Gathered, CoreError> {
     let bounds = match bounds {
         Some(bounds) => Some(bounds),
         None if bounded.is_empty() => None,
-        None => Some(time_bounds(&mut memo, &bounded).await?),
+        None => Some(time_bounds(&mut memo, &read_times, &bounded).await?),
     };
     if let Some(bounds) = &bounds {
         if anchor < bounds.min {
