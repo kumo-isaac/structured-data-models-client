@@ -50,6 +50,12 @@ The test author's commits, rebased under this package's: `contract/tests/test_t2
 Pinned elsewhere, for the test author: `contract/t136-forecast-vectors.json`'s `count-filtered-3` (a forecast of `COUNT(orders.* WHERE orders.price > 50, ...)`) holds python-core and rust-host to the core's earlier `target_filter` refusal; the core now answers it as the reference does, so `test_t136_forecast.py`'s two `count-filtered-3` keys and `t136_forecast.rs` fail until the vector's core expectations are re-recorded.
 Three cases end, on the reference, with `INTERNAL_ERROR` (the scripted endpoint answers no probabilities): `rank.top-k`, `rank.top-k-option`, `rank.unscored-candidate`; the ratchet admits no such baseline, so they have none.
 
+### After the test author's fixes
+
+The test author's 81f06d0b..5c1711ab (cherry-picked): the scripted endpoint answers probabilities where a case asks, so `rank.top-k`, `rank.top-k-option` and `rank.unscored-candidate` answer through predict and now have baselines on all three runners; `count-filtered-3` re-recorded as the core answers it; an endpoint's refusal held to its status on python-core.
+`rust:vector:parts.failed-call-1` is out of pending; only `rank.batched` (T2.8c's `batched_part`) stays.
+`test_t28_ranking.py`, `test_t136_forecast.py` and `test_t128b_predict_result.py` (three databases, Postgres 17 in the pinned image): 336 passed; `t28_ranking.rs` and `t136_forecast.rs`: pass; `ratchet.py check --checkpoint f42d92ea`: ok.
+
 ### Deviations and questions
 
 - The contract additions are v26 additions after T2.1b, as T2.2's and T2.18's were.
