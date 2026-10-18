@@ -520,7 +520,10 @@ fn filter_keeps(array: &ArrayRef, filter: &RowFilter) -> Result<Vec<bool>, CoreE
             .map(|x| holds(x.map(|x| x.cmp(&i128::from(*c)))))
             .collect(),
         // An integer column against a float, at float64.
-        #[allow(clippy::cast_precision_loss, reason = "as pandas' astype('float64')")]
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "an integer widened to compare with a float, as the executor does"
+        )]
         (Left::Int(v), FilterConstant::Float(c)) => v
             .iter()
             .map(|x| holds(x.and_then(|x| (x as f64).partial_cmp(c))))
@@ -528,7 +531,7 @@ fn filter_keeps(array: &ArrayRef, filter: &RowFilter) -> Result<Vec<bool>, CoreE
         // A float column at float32, the constant cast to it.
         #[allow(
             clippy::cast_precision_loss,
-            reason = "as pandas casts the constant to float32"
+            reason = "the constant narrowed to the column's float32, as the executor does"
         )]
         (Left::Float32(v), FilterConstant::Int(c)) => v
             .iter()
@@ -536,7 +539,7 @@ fn filter_keeps(array: &ArrayRef, filter: &RowFilter) -> Result<Vec<bool>, CoreE
             .collect(),
         #[allow(
             clippy::cast_possible_truncation,
-            reason = "as pandas casts the constant to float32"
+            reason = "the constant narrowed to the column's float32, as the executor does"
         )]
         (Left::Float32(v), FilterConstant::Float(c)) => v
             .iter()

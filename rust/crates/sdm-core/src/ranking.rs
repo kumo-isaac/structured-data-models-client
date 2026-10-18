@@ -148,7 +148,7 @@ pub(crate) async fn materialize(
     for (position, candidate) in &kept {
         let literal = ranking::literal(candidate, *position, dtype, crate::pql::float_text)?;
         let question = ranked
-            .question(&literal, sdm_pql::names::quote_name)
+            .question(&literal, crate::pql::quote_name)
             .ok_or_else(|| sdm_engine::not_yet("open_window"))?;
         let named = ranking::json_text(candidate, crate::pql::float_text)
             .ok_or_else(|| crate::run::internal("a candidate written has no JSON text"))?;

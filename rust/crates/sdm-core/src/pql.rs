@@ -938,6 +938,13 @@ fn ranks_foreign_key(target: &PqlNode, schema: &QuerySchema) -> bool {
     schema.links.iter().flatten().any(|c| c == column)
 }
 
+/// A name as the query language spells it, in backticks where a bare name
+/// cannot (T2.8: a ranking's questions name the ranked table so), from
+/// here, the one module that names the parser.
+pub(crate) fn quote_name(name: &str) -> String {
+    parser::names::quote_name(name)
+}
+
 /// The text a float class is spelled in, as the reference spells it: the
 /// parser's float text, the shortest digits that read back to the double
 /// ([`sdm_pql::float_repr`]). The payload and the answer's layout take it

@@ -655,7 +655,7 @@ mod tests {
     }
 
     #[test]
-    fn candidates_equal_in_python_are_one_whatever_their_type() {
+    fn candidates_equal_as_the_reference_holds_them_are_one() {
         let given = vec![
             Candidate::Int(1),
             Candidate::Float(1.0),

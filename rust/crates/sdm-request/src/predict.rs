@@ -674,7 +674,7 @@ pub fn body(
         // by name when not text, `prediction_statistic`).
         Some(output @ Value::Object(_)) => output
             .get("prediction_statistic")
-            .filter(|chosen| truthy(chosen))
+            .filter(|chosen| is_chosen(chosen))
             .cloned(),
         Some(_) => return Err(bad_payload("output")),
     };
@@ -748,9 +748,10 @@ pub fn body(
     Ok(envelope)
 }
 
-/// Whether Python reads the value its JSON reader gives of `value` as true:
-/// not null, `false`, a zero, empty text, an empty list or an empty object.
-fn truthy(value: &Value) -> bool {
+/// Whether a statistic the payload holds is one `_output_for` takes as
+/// chosen (`chosen or 'median'`): not null, `false`, a zero, empty text, an
+/// empty list or an empty object.
+fn is_chosen(value: &Value) -> bool {
     match value {
         Value::Null => false,
         Value::Bool(b) => *b,
@@ -1173,7 +1174,7 @@ fn named(
             let Some(id) = &item.id else {
                 return Err(bad_response("prediction.id", "missing"));
             };
-            if *id != instances[index] {
+            if instances[index].as_deref() != Some(id.as_str()) {
                 return Err(bad_response("prediction.id", "not_the_row_s"));
             }
         }
@@ -1644,7 +1645,10 @@ fn as_written_column(rows: &[&Row]) -> Option<(DataType, ArrayRef)> {
     let float = |answer: &Answer| -> Option<f64> {
         match answer {
             Answer::Float(v) | Answer::NonFinite(v) => Some(*v),
-            #[allow(clippy::cast_precision_loss, reason = "as pandas widens an integer")]
+            #[allow(
+                clippy::cast_precision_loss,
+                reason = "an integer widened as the frame widens it"
+            )]
             Answer::Int(n) => Some(*n as f64),
             Answer::Written(Value::Number(token)) => token.parse().ok(),
             _ => None,
@@ -1836,24 +1840,13 @@ fn integer(digits: &str) -> Entity {
 }
 
 /// A row's instance id as the reference compares it with the id an answer
-/// names (`str(instances[index])`, T2.8): Python's `str` of the value its
-/// reader gives, an integer's digits, the text, a float as Python writes
-/// one (`float_text`), `None`, `True` and `False`, and a list or an object
-/// as Python writes one ([`python_repr`]).
-fn instance_text(value: &Value, float_text: fn(f64) -> String) -> String {
-    match value {
+/// names (`str(instances[index])`, T2.8): an integer's digits (`-0` as
+/// `0`), the text, a float as the parser's `float_text` writes it, a
+/// boolean as `True` or `False` and a null as `None`; none for a list or an
+/// object, which no id an answer names matches.
+fn instance_text(value: &Value, float_text: fn(f64) -> String) -> Option<String> {
+    Some(match value {
         Value::Text(text) => text.clone(),
-        other => python_repr(other, float_text),
-    }
-}
-
-/// `repr` of the value Python's JSON reader gives of `value`: an integer's
-/// digits (`-0` as `0`), a float as `float_text` writes it (a token past a
-/// double's range an infinity), `None`, `True`, `False`, text in quotes as
-/// Python quotes it ([`python_text`]), and a list or an object as Python
-/// writes one, `[a, b]` and `{'k': v}`.
-pub fn python_repr(value: &Value, float_text: fn(f64) -> String) -> String {
-    match value {
         Value::Null => "None".to_owned(),
         Value::Bool(true) => "True".to_owned(),
         Value::Bool(false) => "False".to_owned(),
@@ -1866,67 +1859,8 @@ pub fn python_repr(value: &Value, float_text: fn(f64) -> String) -> String {
             }
         }
         Value::Number(token) => float_text(token.parse::<f64>().unwrap_or(f64::NAN)),
-        Value::Text(text) => python_text(text),
-        Value::Array(items) => format!(
-            "[{}]",
-            items
-                .iter()
-                .map(|item| python_repr(item, float_text))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-        Value::Object(members) => format!(
-            "{{{}}}",
-            members
-                .iter()
-                .map(|(name, item)| format!(
-                    "{}: {}",
-                    python_text(name),
-                    python_repr(item, float_text)
-                ))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-    }
-}
-
-/// Text as Python's `repr` quotes it: in single quotes, or double where it
-/// holds a single quote and no double; a backslash, the quote, a tab, a line
-/// feed and a carriage return escaped, and every other control character as
-/// `\xNN`, `\uNNNN` or `\UNNNNNNNN`.
-fn python_text(text: &str) -> String {
-    let quote = if text.contains('\'') && !text.contains('"') {
-        '"'
-    } else {
-        '\''
-    };
-    let mut out = String::with_capacity(text.len() + 2);
-    out.push(quote);
-    for c in text.chars() {
-        match c {
-            '\\' => out.push_str("\\\\"),
-            '\t' => out.push_str("\\t"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            c if c == quote => {
-                out.push('\\');
-                out.push(c);
-            }
-            c if c.is_control() => {
-                let code = u32::from(c);
-                if code <= 0xff {
-                    out.push_str(&format!("\\x{code:02x}"));
-                } else if code <= 0xffff {
-                    out.push_str(&format!("\\u{code:04x}"));
-                } else {
-                    out.push_str(&format!("\\U{code:08x}"));
-                }
-            }
-            c => out.push(c),
-        }
-    }
-    out.push(quote);
-    out
+        Value::Array(_) | Value::Object(_) => return None,
+    })
 }
 
 #[cfg(test)]
