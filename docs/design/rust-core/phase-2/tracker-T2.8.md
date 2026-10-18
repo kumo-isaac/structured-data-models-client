@@ -37,6 +37,8 @@ A ranking (`RANK TOP k`) on the core route is the core's from the question to th
 
 `cargo test --workspace`: every target passes but `sdm-testkit`'s `t136_forecast` (below); the before-handoff list (refusal map, wheel smoke, release contract, register, ratchet, `l0_deps.py`, `l0_scan.py`, `lane.py check`, `cargo fmt`, clippy, ruff) passes.
 
+`pytest contract/tests tests/test_contract_cases.py -n 3 --dist loadfile` (Postgres 17 named): 4,645 passed, 161 failed: 118 `test_t136_host2_*` (the recorded answers are the ref-pandas3 cell's versions, not this machine's venv's, as at T2.18), two `test_t136_forecast.py` keys of `count-filtered-3` (below), `test_t22_sqlite.py`'s `rank.batched@sqlite` (T2.8c), and the full-corpus gate runs (`test_gate_*`, `test_t20*`, `test_cross_host.py`, `test_runners.py`), whose only gated findings are `rank.batched`'s class (T2.8c) and the three `INTERNAL_ERROR` cases with no baseline (below).
+
 ### Acceptance
 
 The test author's commits, rebased under this package's: `contract/tests/test_t28_ranking.py` on all three databases (Postgres 17 in the pinned image) 106 passed and `sdm-testkit`'s `tests/t28_ranking.rs` on DuckDB and SQLite; `t28-pending.json`'s `pending` holds the keys still failing:
